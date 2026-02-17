@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lSDL2 -lm
+LDFLAGS = -lSDL2 -lSDL2_ttf -lm
 
 TARGET = scope
 

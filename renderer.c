@@ -5,6 +5,98 @@
 
 #define PI 3.14159265358979323846f
 
+int renderer_init(struct Renderer *r, int width, int height)
+{
+    r->width = width;
+    r->height = height;
+
+    r->window = SDL_CreateWindow(
+        "Signal Generator Scope",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        width,
+        height,
+        0
+    );
+
+    if (!r->window) {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    r->sdl_renderer = SDL_CreateRenderer(
+        r->window,
+        -1,
+        SDL_RENDERER_ACCELERATED
+    );
+
+    if (!r->sdl_renderer) {
+        printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    r->texture = SDL_CreateTexture(
+        r->sdl_renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        width,
+        height
+    );
+
+    if (!r->texture) {
+        printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    r->pixel_buffer = malloc(width * height * sizeof(uint32_t));
+    if (!r->pixel_buffer) {
+        printf("Failed to allocate pixel buffer\n");
+        return -1;
+    }
+
+    if (TTF_Init() != 0) {
+        printf("TTF_Init failed: %s\n", TTF_GetError());
+        return -1;
+    }
+
+    r->font = TTF_OpenFont(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        18
+    );
+
+    if (!r->font) {
+        printf("TTF_OpenFont failed: %s\n", TTF_GetError());
+        return -1;
+    }
+
+    return 0;
+}
+
+void renderer_shutdown(struct Renderer *r)
+{
+    if (r->font) {
+        TTF_CloseFont(r->font);
+    }
+
+    TTF_Quit();
+
+    if (r->pixel_buffer) {
+        free(r->pixel_buffer);
+    }
+
+    if (r->texture) {
+        SDL_DestroyTexture(r->texture);
+    }
+
+    if (r->sdl_renderer) {
+        SDL_DestroyRenderer(r->sdl_renderer);
+    }
+
+    if (r->window) {
+        SDL_DestroyWindow(r->window);
+    }
+}
+
 struct Surface {
     uint32_t *buffer;
     int width;
