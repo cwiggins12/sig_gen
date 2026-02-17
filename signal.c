@@ -71,6 +71,10 @@ float signal_next_sample(void) {
     return sample;
 }
 
+int signal_get_write_index() {
+    return g_write_index;
+}
+
 const float *signal_get_buffer(void) {
     return g_ring_buffer;
 }

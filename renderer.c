@@ -1,6 +1,6 @@
 #include "renderer.h"
 #include "signal.h"
-#include <math.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 #define PI 3.14159265358979323846f
@@ -37,27 +37,16 @@ static void put_v_line(struct Surface *s, int x, int y, int length, uint32_t col
 }
 
 static void put_line(struct Surface *s, int x0, int y0, int x1, int y1, uint32_t color) {
-    int dx, dy, p, x, y;
+    int dx = x1 - x0;
+    int dy = y1 - y0;
 
-    dx = x1 - x0;
-    dy = y1 - y0;
+    int steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
 
-    x = x0;
-    y = y0;
-
-    p = 2 * dy - dx;
-
-    while (x < x1) {
-        if (p >= 0) {
-            put_pixel(s, x, y, color);
-            y = y + 1;
-            p = p + 2 * dy - 2 * dx;
-        }
-        else {
-            put_pixel(s, x, y, color);
-            p = p + 2 * dy;
-        }
-        x = x + 1;
+    for (int i = 0; i < steps; ++i) {
+        float t = (float)i / steps;
+        int x = x0 + dx * t;
+        int y = y0 + dy * t;
+        put_pixel(s, x, y, color);
     }
 }
 
@@ -111,20 +100,29 @@ void render_frame(uint32_t *buffer, int width, int height) {
 
     uint32_t wave_color = 0xFFFFFFFF;
 
-    int index = (buffer_size - width + buffer_size) % buffer_size;
-    float sample = sig_buffer[index];
+    int write_index = signal_get_write_index();
+    int start = write_index - width;
+    if (start < 0) {
+        start += buffer_size;
+    }
+    float sample = sig_buffer[start];
 
     int last_y = (int)(center - sample * amplitude);
 
     put_pixel(&surface, 0, last_y, wave_color);
 
     for (int x = 0; x < width; ++x) {
-        index = (buffer_size - width + x + buffer_size) % buffer_size;
+        int index = (start + x) % buffer_size;
         sample = sig_buffer[index];
 
         int y = (int)(center - sample * amplitude);
-
-        put_line(&surface, x - 1, last_y, x, y, wave_color);
+        
+        if (x > 0) {
+            put_line(&surface, x - 1, last_y, x, y, wave_color);
+        }
+        else {
+            put_pixel(&surface, x, y, wave_color);
+        }
 
         last_y = y;
     }

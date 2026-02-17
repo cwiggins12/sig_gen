@@ -12,6 +12,7 @@ void signal_init(int sample_rate);
 void signal_set_frequency(float freq);
 void signal_set_amplitude(float amp);
 void signal_set_waveform(WaveType type);
+int signal_get_write_index();
 
 float signal_next_sample(void);
 
