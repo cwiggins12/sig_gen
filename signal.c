@@ -4,7 +4,6 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
-
 #define PI 3.14159265358979323846f
 
 static int sample_rate = 48000;
@@ -80,7 +79,6 @@ float signal_get_amplitude() {
 }
 
 const char* signal_get_waveform() {
-    //change 4 on new type addition
     if (waveform < 0 || waveform > 6) {
         return "UNKNOWN";
     }
@@ -89,26 +87,15 @@ const char* signal_get_waveform() {
 
 static float generate_wave_sample() {
     switch (waveform) {
-        case NONE:
-            return 0.0f;
-            
-        case WAVE_SINE:
-            return sinf(phase);
-
-        case WAVE_SQUARE:
-            return (sinf(phase) >= 0.0f) ? 1.0f : -1.0f;
-
-        case WAVE_SAW:
-            return 2.0f * (phase / (2.0f * PI)) - 1.0f;
-
+        case NONE: return 0.0f;
+        case WAVE_SINE: return sinf(phase);
+        case WAVE_SQUARE: return (sinf(phase) >= 0.0f) ? 1.0f : -1.0f;
+        case WAVE_SAW: return 2.0f * (phase / (2.0f * PI)) - 1.0f;
         case WAVE_TRIANGLE: {
             float normalized = phase / (2.0f * PI);
             return 2.0f * fabsf(2.0f * normalized - 1.0f) - 1.0f;
         }
-
-        case WHITE_NOISE: 
-            return (float)gsl_ran_gaussian(rng_generator, 0.25);
-
+        case WHITE_NOISE: return (float)gsl_ran_gaussian(rng_generator, 0.25);
         case PINK_NOISE: {
             float white = (float)gsl_ran_gaussian(rng_generator, 0.25);
             pink_b0 = 0.99886f * pink_b0 + white * 0.0555179f;
@@ -123,9 +110,7 @@ static float generate_wave_sample() {
             pink_b6 = white * 0.115926f;
             return pink * 0.11f;
         }
-
-        default:
-            return 0.0f;
+        default: return 0.0f;
     }
 }
 

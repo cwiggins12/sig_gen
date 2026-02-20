@@ -2,3 +2,4 @@ sesh
 renderer.o
 signal.o
 main.o
+sig_gen

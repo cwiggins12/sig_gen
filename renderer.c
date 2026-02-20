@@ -65,23 +65,25 @@ int renderer_init(struct Renderer *r, int width, int height) {
     r->window = SDL_CreateWindow("Signal Generator",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         width, height, 0);
-
-    if (!r->window) return -1;
+    if (!r->window) {
+        return -1;
+    }
 
     r->sdl_renderer = SDL_CreateRenderer(r->window, -1,
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!r->sdl_renderer) {
+        return -1;
+    }
+    if (TTF_Init() != 0) {
+        return -1;
+    }
 
-    if (!r->sdl_renderer) return -1;
-
-    if (TTF_Init() != 0) return -1;
-
-    r->font =
-        TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18);
-
-    if (!r->font) return -1;
+    r->font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18);
+    if (!r->font) {
+        return -1;
+    }
 
     SDL_Color white = {255,255,255,255};
-
     create_label(r, &r->help_freq, "UP/DOWN: Change Frequency", white);
     create_label(r, &r->help_amp,  "LEFT/RIGHT: Change Amplitude", white);
     create_label(r, &r->help_wave, "0-6: Change Waveform", white);

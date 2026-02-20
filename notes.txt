@@ -1,0 +1,11 @@
+need free unlicensed font in repo
+
+get machine sample rate and use that instead
+
+need logic for exe to run anywhere (SDL_GetBasePath())
+
+look into click and type logic for freq and amp
+
+look into making custom gaussian distribution to allow for cross platform? 
+
+I think makefile will need to be updated as well for crossplat

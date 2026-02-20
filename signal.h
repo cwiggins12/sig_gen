@@ -12,6 +12,7 @@ typedef enum {
 } WaveType;
 
 void signal_init(int sample_rate);
+void signal_shutdown();
 
 float signal_next_sample(void);
 
