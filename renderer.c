@@ -4,15 +4,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <math.h>
+
+extern const unsigned char embedded_font[];
+extern const unsigned int embedded_font_len;
 
 static int create_label(struct Renderer *r, struct Label *label,
                         const char *text, SDL_Color color) {
     SDL_Surface *surface = TTF_RenderText_Blended(r->font, text, color);
     if (!surface) return -1;
 
-    label->texture =
-        SDL_CreateTextureFromSurface(r->sdl_renderer, surface);
+    label->texture = SDL_CreateTextureFromSurface(r->sdl_renderer, surface);
 
     label->w = surface->w;
     label->h = surface->h;
@@ -68,8 +69,7 @@ static void update_dynamic_labels(struct Renderer *r) {
 
     if (wave != r->last_wave) {
         destroy_label(&r->wave_label);
-        snprintf(text, sizeof(text),
-                 "Waveform: %s", wave);
+        snprintf(text, sizeof(text), "Waveform: %s", wave);
         create_label(r, &r->wave_label, text, white);
         r->last_wave = wave;
     }
@@ -183,10 +183,20 @@ int renderer_init(struct Renderer *r, int width, int height) {
 
     if (TTF_Init() != 0) return -1;
 
-    r->font = TTF_OpenFont(
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18);
+    //r->font = TTF_OpenFont("/home/cody/Projects/signal_generator/DS-DIGIB.TTF", 18);
+    SDL_RWops *rw = SDL_RWFromConstMem(embedded_font, embedded_font_len);
 
-    if (!r->font) return -1;
+    if (!rw) {
+        printf("RWFromConstMem failed: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    r->font = TTF_OpenFontRW(rw, 1, 18);
+
+    if (!r->font) {
+        printf("TTF_OpenFontRW failed: %s\n", TTF_GetError());
+        return -1;
+    }
 
     SDL_Color white = {255,255,255,255};
 

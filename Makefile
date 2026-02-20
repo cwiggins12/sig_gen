@@ -4,7 +4,7 @@ LDFLAGS = -lSDL2 -lSDL2_ttf -lgsl -lgslcblas -lm
 
 TARGET = sig_gen
 
-SRC = main.c renderer.c signal.c
+SRC = main.c renderer.c signal.c font_embedded.c
 OBJ = $(SRC:.c=.o)
 
 all: $(TARGET)

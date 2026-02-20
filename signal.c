@@ -1,4 +1,5 @@
 #include "signal.h"
+#include <SDL2/SDL_audio.h>
 #include <math.h>
 #include <time.h>
 #include <gsl/gsl_rng.h>
@@ -26,6 +27,8 @@ static float smoothing_coeff = 0.0f;
 
 static gsl_rng *rng_generator = NULL;
 
+static SDL_AudioDeviceID device = 0;
+
 /* Pink noise state */
 static float pink_b0 = 0.0f;
 static float pink_b1 = 0.0f;
@@ -45,9 +48,10 @@ static const char *waveform_names[] = {
     "PINK NOISE"
 };
 
-void signal_init(int sr) {
+void signal_init(int sr, SDL_AudioDeviceID d) {
     sample_rate = sr;
     phase = 0.0f;
+    device = d;
 
     current_frequency = target_frequency;
     current_amplitude = target_amplitude;
@@ -68,29 +72,29 @@ void signal_shutdown() {
 }
 
 void signal_set_frequency(float freq) {
-    SDL_LockAudio();
+    SDL_LockAudioDevice(device);
 
     if (freq < 20.0f)           target_frequency = 20.0f;
     else if (freq > 20000.0f)   target_frequency = 20000.0f;
     else                        target_frequency = freq;
 
-    SDL_UnlockAudio();
+    SDL_UnlockAudioDevice(device);
 }
 
 void signal_set_amplitude(float amp) {
-    SDL_LockAudio();
+    SDL_LockAudioDevice(device);
 
     if (amp < 0.0f)         target_amplitude = 0.0f;
     else if (amp > 1.0f)    target_amplitude = 1.0f;
     else                    target_amplitude = amp;
 
-    SDL_UnlockAudio();
+    SDL_UnlockAudioDevice(device);
 }
 
 void signal_set_waveform(WaveType type) {
-    SDL_LockAudio();
+    SDL_LockAudioDevice(device);
     waveform = type;
-    SDL_UnlockAudio();
+    SDL_UnlockAudioDevice(device);
 }
 
 float signal_get_frequency() {
@@ -106,6 +110,10 @@ const char* signal_get_waveform() {
         return "UNKNOWN";
 
     return waveform_names[waveform];
+}
+
+SDL_AudioDeviceID signal_get_device() {
+    return device;
 }
 
 static float generate_wave_sample(float phase) {
