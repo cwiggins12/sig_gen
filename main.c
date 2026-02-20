@@ -1,26 +1,24 @@
-
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_keycode.h>
 #include <SDL2/SDL_ttf.h>
 #include <stdio.h>
-#include <stdint.h>
 
 #include "renderer.h"
 #include "signal.h"
 
-#define WIDTH 800
-#define HEIGHT 600
+#define WIDTH 300
+#define HEIGHT 260
 
-static void audio_callback(void *userdata, Uint8 *stream, int len)
-{
+static void audio_callback(void *userdata, Uint8 *stream, int len) {
     float *buffer = (float *)stream;
     int samples = len / sizeof(float);
 
-    for (int i = 0; i < samples; ++i)
-        buffer[i] = signal_next_sample() * 0.2f;
+    for (int i = 0; i < samples; ++i) {
+        buffer[i] = signal_next_sample();
+    }
 }
 
-int main()
-{
+int main() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         printf("SDL_Init Error: %s\n", SDL_GetError());
         return 1;
@@ -54,71 +52,79 @@ int main()
 
     int running = 1;
     SDL_Event event;
-    float current_frequency = 440.0f;
 
-    while (running)
-    {
-        while (SDL_PollEvent(&event))
-        {
-            if (event.type == SDL_QUIT)
+    while (running) {
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
                 running = 0;
+            }
 
-            if (event.type == SDL_KEYDOWN)
-            {
-                switch (event.key.keysym.sym)
-                {
-                    case SDLK_UP:
-                        current_frequency += 10.0f;
-                        signal_set_frequency(current_frequency);
+            if (event.type == SDL_KEYDOWN) {
+                switch (event.key.keysym.sym) {
+                    case SDLK_UP: {
+                        float f = signal_get_frequency();
+                        signal_set_frequency(f + 10.0f);
                         break;
-
-                    case SDLK_DOWN:
-                        current_frequency -= 10.0f;
-                        if (current_frequency < 10.0f)
-                            current_frequency = 10.0f;
-                        signal_set_frequency(current_frequency);
+                    }
+                    case SDLK_DOWN: {
+                        float f = signal_get_frequency();
+                        signal_set_frequency(f - 10.0f);
                         break;
-
-                    case SDLK_1:
+                    }
+                    case SDLK_LEFT: {
+                        float a = signal_get_amplitude();
+                        signal_set_amplitude(a - 0.05f);
+                        break;
+                    }
+                    case SDLK_RIGHT: {
+                        float a = signal_get_amplitude();
+                        signal_set_amplitude(a + 0.05f);
+                        break;
+                    }
+                    case SDLK_0: {
+                        signal_set_waveform(NONE);
+                        break;
+                    }
+                    case SDLK_1: {
                         signal_set_waveform(WAVE_SINE);
                         break;
-
-                    case SDLK_2:
+                    }
+                    case SDLK_2: {
                         signal_set_waveform(WAVE_SQUARE);
                         break;
-
-                    case SDLK_3:
+                    }
+                    case SDLK_3: {
                         signal_set_waveform(WAVE_SAW);
                         break;
-
-                    case SDLK_4:
+                    }
+                    case SDLK_4: {
                         signal_set_waveform(WAVE_TRIANGLE);
                         break;
+                    }
+                    case SDLK_5: {
+                        signal_set_waveform(WHITE_NOISE);
+                        break;
+                    }
+                    case SDLK_6: {
+                        signal_set_waveform(PINK_NOISE);
+                        break;
+                    }
+                    case SDLK_q: {
+                        running = 0;
+                        break;
+                    }
                 }
             }
         }
 
-        render_frame(
-            renderer.pixel_buffer,
-            renderer.width,
-            renderer.height
-        );
-
-        SDL_UpdateTexture(
-            renderer.texture,
-            NULL,
-            renderer.pixel_buffer,
-            renderer.width * sizeof(uint32_t)
-        );
-
-        SDL_RenderClear(renderer.sdl_renderer);
-        SDL_RenderCopy(renderer.sdl_renderer, renderer.texture, NULL, NULL);
-        SDL_RenderPresent(renderer.sdl_renderer);
+        render_frame(&renderer);
     }
 
+    signal_shutdown();
     SDL_CloseAudio();
     renderer_shutdown(&renderer);
     SDL_Quit();
 
     return 0;
 }
+

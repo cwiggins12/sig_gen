@@ -1,55 +1,127 @@
 #include "signal.h"
 #include <math.h>
+#include <time.h>
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+
 
 #define PI 3.14159265358979323846f
-#define BUFFER_SIZE 4096
 
-static int g_sample_rate = 48000;
-static float g_frequency = 440.0f;
-static float g_amplitude = 0.5f;
+static int sample_rate = 48000;
+static float frequency = 440.0f;
+static float amplitude = 0.5f;
+static WaveType waveform = WAVE_SINE;
 
-static float g_phase = 0.0f;
-static float g_phase_increment = 0.0f;
+static float phase = 0.0f;
+static float phase_increment = 0.0f;
 
-static float g_ring_buffer[BUFFER_SIZE];
-static int g_write_index = 0;
+static gsl_rng *rng_generator = NULL;
 
-static WaveType g_waveform = WAVE_SINE;
+static float pink_b0 = 0.0f;
+static float pink_b1 = 0.0f;
+static float pink_b2 = 0.0f;
+static float pink_b3 = 0.0f;
+static float pink_b4 = 0.0f;
+static float pink_b5 = 0.0f;
+static float pink_b6 = 0.0f;
 
-void signal_init(int sample_rate) {
-    g_sample_rate = sample_rate;
-    g_phase = 0.0f;
-    g_write_index = 0;
-    signal_set_frequency(g_frequency);
+//if adding type add to bounds check on getter
+static const char *waveform_names[] = {
+    "NONE",
+    "SINE",
+    "SQUARE",
+    "SAW",
+    "TRIANGLE",
+    "WHITE NOISE",
+    "PINK NOISE"
+};
+
+void signal_init(int sr) {
+    sample_rate = sr;
+    phase = 0.0f;
+    signal_set_frequency(frequency);
+
+    const gsl_rng_type *rng_type;
+    rng_type = gsl_rng_mt19937;
+    rng_generator = gsl_rng_alloc(rng_type);
+    gsl_rng_set(rng_generator, time(NULL));
+
+    pink_b0 = pink_b1 = pink_b2 = pink_b3 =
+    pink_b4 = pink_b5 = pink_b6 = 0.0f;
+}
+
+void signal_shutdown() {
+    gsl_rng_free(rng_generator);
 }
 
 void signal_set_frequency(float freq) {
-    g_frequency = freq;
-    g_phase_increment = 2.0f * PI * g_frequency / (float)g_sample_rate;
+    if (freq < 20.0f)           frequency = 20.0f;
+    else if (freq > 20000.0f)   frequency = 20000.0f;
+    else                        frequency = freq;
+    phase_increment = 2.0f * PI * frequency / (float)sample_rate;
 }
 
 void signal_set_amplitude(float amp) {
-    g_amplitude = amp;
+    if (amp < 0.0f)         amplitude = 0.0f;
+    else if (amp > 1.0f)    amplitude = 1.0f;
+    else                    amplitude = amp;
 }
 
 void signal_set_waveform(WaveType type) {
-    g_waveform = type;
+    waveform = type;
+}
+
+float signal_get_frequency() {
+    return frequency;
+}
+
+float signal_get_amplitude() {
+    return amplitude;
+}
+
+const char* signal_get_waveform() {
+    //change 4 on new type addition
+    if (waveform < 0 || waveform > 6) {
+        return "UNKNOWN";
+    }
+    return waveform_names[waveform];
 }
 
 static float generate_wave_sample() {
-    switch (g_waveform) {
+    switch (waveform) {
+        case NONE:
+            return 0.0f;
+            
         case WAVE_SINE:
-            return sinf(g_phase);
+            return sinf(phase);
 
         case WAVE_SQUARE:
-            return (sinf(g_phase) >= 0.0f) ? 1.0f : -1.0f;
+            return (sinf(phase) >= 0.0f) ? 1.0f : -1.0f;
 
         case WAVE_SAW:
-            return 2.0f * (g_phase / (2.0f * PI)) - 1.0f;
+            return 2.0f * (phase / (2.0f * PI)) - 1.0f;
 
         case WAVE_TRIANGLE: {
-            float normalized = g_phase / (2.0f * PI);
+            float normalized = phase / (2.0f * PI);
             return 2.0f * fabsf(2.0f * normalized - 1.0f) - 1.0f;
+        }
+
+        case WHITE_NOISE: 
+            return (float)gsl_ran_gaussian(rng_generator, 0.25);
+
+        case PINK_NOISE: {
+            float white = (float)gsl_ran_gaussian(rng_generator, 0.25);
+            pink_b0 = 0.99886f * pink_b0 + white * 0.0555179f;
+            pink_b1 = 0.99332f * pink_b1 + white * 0.0750759f;
+            pink_b2 = 0.96900f * pink_b2 + white * 0.1538520f;
+            pink_b3 = 0.86650f * pink_b3 + white * 0.3104856f;
+            pink_b4 = 0.55000f * pink_b4 + white * 0.5329522f;
+            pink_b5 = -0.7616f * pink_b5 - white * 0.0168980f;
+            float pink = pink_b0 + pink_b1 + pink_b2 +
+                         pink_b3 + pink_b4 + pink_b5 +
+                         pink_b6 + white * 0.5362f;
+            pink_b6 = white * 0.115926f;
+            return pink * 0.11f;
         }
 
         default:
@@ -60,26 +132,11 @@ static float generate_wave_sample() {
 float signal_next_sample(void) {
     float sample = generate_wave_sample();
 
-    g_phase += g_phase_increment;
-    if (g_phase >= 2.0f * PI) {
-        g_phase -= 2.0f * PI;
+    phase += phase_increment;
+    if (phase >= 2.0f * PI) {
+        phase -= 2.0f * PI;
     }
 
-    g_ring_buffer[g_write_index] = sample;
-    g_write_index = (g_write_index + 1) % BUFFER_SIZE;
-
-    return sample;
-}
-
-int signal_get_write_index() {
-    return g_write_index;
-}
-
-const float *signal_get_buffer(void) {
-    return g_ring_buffer;
-}
-
-int signal_get_buffer_size(void) {
-    return BUFFER_SIZE;
+    return sample * amplitude;
 }
 

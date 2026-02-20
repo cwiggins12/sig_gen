@@ -1,0 +1,1 @@
+add white and pink noise waveform type

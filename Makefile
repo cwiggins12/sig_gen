@@ -1,8 +1,8 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lSDL2 -lSDL2_ttf -lm
+LDFLAGS = -lSDL2 -lSDL2_ttf -lgsl -lgslcblas -lm
 
-TARGET = scope
+TARGET = sig_gen
 
 SRC = main.c renderer.c signal.c
 OBJ = $(SRC:.c=.o)
