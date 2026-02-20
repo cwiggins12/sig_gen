@@ -2,4 +2,7 @@ sesh
 renderer.o
 signal.o
 main.o
+font_embedded.o
 sig_gen
+DS-DIGIB.TTF
+notes.txt
