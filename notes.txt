@@ -1,11 +1,13 @@
-need free unlicensed font in repo
+swap out font for font in downloads (do the bold one)
 
-get machine sample rate and use that instead
+need logic for exe to run anywhere and find the font (SDL_GetBasePath())
 
-need logic for exe to run anywhere (SDL_GetBasePath())
-
-look into click and type logic for freq and amp
+test click and type logic more, add a help label for it
 
 look into making custom gaussian distribution to allow for cross platform? 
 
-I think makefile will need to be updated as well for crossplat
+Switch to CMake for cross plat
+
+upgrade OpenAudio to OpenAudioDevice and all that comes with that (not much)
+
+refactor pls

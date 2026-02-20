@@ -25,7 +25,7 @@ static int init_audio() {
     desired.freq = 48000;
     desired.format = AUDIO_F32SYS;
     desired.channels = 1;
-    desired.samples = 512;
+    desired.samples = 1024;
     desired.callback = audio_callback;
 
     if (SDL_OpenAudio(&desired, &obtained) < 0) {
@@ -34,76 +34,53 @@ static int init_audio() {
 
     signal_init(obtained.freq);
     signal_set_frequency(440.0f);
-    SDL_PauseAudio(0);
+    signal_set_amplitude(0.5f);
 
+    SDL_PauseAudio(0);
     return 0;
 }
 
 static int handle_keydown(SDL_Event* e) {
     switch (e->key.keysym.sym) {
-        case SDLK_UP: {
-            float f = signal_get_frequency();
-            signal_set_frequency(f + 10.0f);
+        case SDLK_UP:
+            signal_set_frequency(signal_get_frequency() + 10.0f);
             break;
-        }
-        case SDLK_DOWN: {
-            float f = signal_get_frequency();
-            signal_set_frequency(f - 10.0f);
+        case SDLK_DOWN:
+            signal_set_frequency(signal_get_frequency() - 10.0f);
             break;
-        }
-        case SDLK_LEFT: {
-            float a = signal_get_amplitude();
-            signal_set_amplitude(a - 0.05f);
+        case SDLK_LEFT:
+            signal_set_amplitude(signal_get_amplitude() - 0.05f);
             break;
-        }
-        case SDLK_RIGHT: {
-            float a = signal_get_amplitude();
-            signal_set_amplitude(a + 0.05f);
+        case SDLK_RIGHT:
+            signal_set_amplitude(signal_get_amplitude() + 0.05f);
             break;
-        }
-        case SDLK_0: {
-            signal_set_waveform(NONE);
-            break;
-        }
-        case SDLK_1: {
-            signal_set_waveform(WAVE_SINE);
-            break;
-        }
-        case SDLK_2: {
-            signal_set_waveform(WAVE_SQUARE);
-            break;
-        }
-        case SDLK_3: {
-            signal_set_waveform(WAVE_SAW);
-            break;
-        }
-        case SDLK_4: {
-            signal_set_waveform(WAVE_TRIANGLE);
-            break;
-        }
-        case SDLK_5: {
-            signal_set_waveform(WHITE_NOISE);
-            break;
-        }
-        case SDLK_6: {
-            signal_set_waveform(PINK_NOISE);
-            break;
-        }
-        case SDLK_q: {
-            return 0;
-        }
+        case SDLK_0: signal_set_waveform(NONE); break;
+        case SDLK_1: signal_set_waveform(WAVE_SINE); break;
+        case SDLK_2: signal_set_waveform(WAVE_SQUARE); break;
+        case SDLK_3: signal_set_waveform(WAVE_SAW); break;
+        case SDLK_4: signal_set_waveform(WAVE_TRIANGLE); break;
+        case SDLK_5: signal_set_waveform(WHITE_NOISE); break;
+        case SDLK_6: signal_set_waveform(PINK_NOISE); break;
+        case SDLK_q: return 0;
     }
     return 1;
 }
 
-static int handle_event_poll(SDL_Event* e) {
-    if (e->type == SDL_QUIT) {
+static int handle_event_poll(struct Renderer* r, SDL_Event* e) {
+    if (e->type == SDL_QUIT)
         return 0;
-    }
 
-    if (e->type == SDL_KEYDOWN) {
+    /* Let renderer consume event first */
+    if (renderer_handle_event(r, e))
+        return 1;
+
+    if (r->edit_mode != EDIT_NONE) 
+        return 1;
+
+    /* If not editing, allow global key controls */
+    if (e->type == SDL_KEYDOWN)
         return handle_keydown(e);
-    }
+
     return 1;
 }
 
@@ -112,11 +89,10 @@ static void shutdown(struct Renderer* r) {
     SDL_CloseAudio();
     renderer_shutdown(r);
     SDL_Quit();
-
 }
 
 int main() {
-    //init sdl, renderer, and audio
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         printf("SDL_Init Error: %s\n", SDL_GetError());
         return 1;
@@ -130,24 +106,22 @@ int main() {
     }
 
     if (init_audio() != 0) {
-        SDL_Quit();
         renderer_shutdown(&renderer);
+        SDL_Quit();
         return 1;
     }
 
-    //main program loop: reads event and handles it, then renders frame
     int running = 1;
     SDL_Event event;
 
     while (running) {
         while (SDL_PollEvent(&event)) {
-            running = handle_event_poll(&event);
+            running = handle_event_poll(&renderer, &event);
         }
         render_frame(&renderer);
     }
 
     shutdown(&renderer);
-
     return 0;
 }
 
