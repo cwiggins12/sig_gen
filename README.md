@@ -1,7 +1,11 @@
 # sig_gen
 I built this to test my current project fully and figured it might help out anyone looking for a good, cheap, and minimalist way to test any audio analysis tools or audio device output.
 sig_gen is an audio signal generator with a minimal graphical interface, built with C and SDL2. 
+
+
 ![sig_gen screenshot placeholder](sig_gen_screenshot.png)
+
+
 ## Features
 - **7 waveform types:** Sine, Square, Saw, Triangle, White Noise, Pink Noise, and silence
 - **Real-time parameter control** via keyboard or by clicking and typing values directly
