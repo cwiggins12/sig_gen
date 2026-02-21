@@ -1,9 +1,8 @@
 #include "signal.h"
-#include <SDL2/SDL_audio.h>
 #include <math.h>
 #include <time.h>
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
+//#include <gsl/gsl_rng.h>
+//#include <gsl/gsl_randist.h>
 #include <SDL2/SDL.h>
 
 #define PI 3.14159265358979323846f
@@ -19,13 +18,15 @@ static float current_frequency = 440.0f;
 static float current_amplitude = 0.5f;
 
 static WaveType waveform = WAVE_SINE;
+static int waveform_change = 0;
+static WaveType next_waveform = NONE;
 
 static float phase = 0.0f;
 
 /* 5 ms smoothing time */
 static float smoothing_coeff = 0.0f;
 
-static gsl_rng *rng_generator = NULL;
+//static gsl_rng *rng_generator = NULL;
 
 static SDL_AudioDeviceID device = 0;
 
@@ -59,16 +60,16 @@ void signal_init(int sr, SDL_AudioDeviceID d) {
     /* 5ms time constant */
     smoothing_coeff = 1.0f - expf(-1.0f / (0.005f * sample_rate));
 
-    const gsl_rng_type *rng_type = gsl_rng_mt19937;
-    rng_generator = gsl_rng_alloc(rng_type);
-    gsl_rng_set(rng_generator, time(NULL));
+//    const gsl_rng_type *rng_type = gsl_rng_mt19937;
+//    rng_generator = gsl_rng_alloc(rng_type);
+//    gsl_rng_set(rng_generator, time(NULL));
 
     pink_b0 = pink_b1 = pink_b2 = pink_b3 =
     pink_b4 = pink_b5 = pink_b6 = 0.0f;
 }
 
 void signal_shutdown() {
-    gsl_rng_free(rng_generator);
+//    gsl_rng_free(rng_generator);
 }
 
 void signal_set_frequency(float freq) {
@@ -93,7 +94,8 @@ void signal_set_amplitude(float amp) {
 
 void signal_set_waveform(WaveType type) {
     SDL_LockAudioDevice(device);
-    waveform = type;
+    next_waveform = type;
+    waveform_change = 1;
     SDL_UnlockAudioDevice(device);
 }
 
@@ -135,10 +137,10 @@ static float generate_wave_sample(float phase) {
         }
 
         case WHITE_NOISE:
-            return (float)gsl_ran_gaussian(rng_generator, 0.25f);
+            //return (float)gsl_ran_gaussian(rng_generator, 0.25f);
 
         case PINK_NOISE: {
-            float white = (float)gsl_ran_gaussian(rng_generator, 0.25f);
+            float white = 0.0f; //(float)gsl_ran_gaussian(rng_generator, 0.25f);
 
             pink_b0 = 0.99886f * pink_b0 + white * 0.0555179f;
             pink_b1 = 0.99332f * pink_b1 + white * 0.0750759f;
@@ -162,9 +164,15 @@ static float generate_wave_sample(float phase) {
 }
 
 float signal_next_sample(void) {
+    float target_amp = (waveform_change) ? 0.0 : target_amplitude;
     /* Smooth parameters */
     current_frequency += (target_frequency - current_frequency) * smoothing_coeff;
-    current_amplitude += (target_amplitude - current_amplitude) * smoothing_coeff;
+    current_amplitude += (target_amp - current_amplitude) * smoothing_coeff;
+    
+    if (waveform_change && current_amplitude < 0.000001f) {
+        waveform_change = 0;
+        waveform = next_waveform;
+    }
 
     /* Recompute increment from smoothed frequency */
     float phase_increment = 2.0f * PI * current_frequency / (float)sample_rate;
@@ -182,3 +190,4 @@ float signal_next_sample(void) {
 
     return sample;
 }
+

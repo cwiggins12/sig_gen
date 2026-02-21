@@ -1,7 +1,7 @@
 #ifndef SIGNAL_H
 #define SIGNAL_H
 
-#include <SDL2/SDL.h>
+#include <SDL2/SDL_audio.h>
 
 typedef enum {
 	NONE,
