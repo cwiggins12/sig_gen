@@ -49,7 +49,6 @@ int renderer_init(struct Renderer *r, int width, int height);
 void renderer_shutdown(struct Renderer *r);
 void render_frame(struct Renderer *r);
 
-/* Returns 1 if event was consumed */
 int renderer_handle_event(struct Renderer *r, SDL_Event *e);
 
 #endif
