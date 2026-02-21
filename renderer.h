@@ -26,6 +26,7 @@ struct Renderer {
 
     struct Label help_freq;
     struct Label help_amp;
+    struct Label help_type;
     struct Label help_wave;
     struct Label help_quit;
 

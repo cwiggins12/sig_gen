@@ -202,8 +202,9 @@ int renderer_init(struct Renderer *r, int width, int height) {
 
     create_label(r, &r->help_freq, "UP/DOWN: Change Frequency", white);
     create_label(r, &r->help_amp,  "LEFT/RIGHT: Change Amplitude", white);
+    create_label(r, &r->help_type, "OR Click field, Type Value, & Hit Enter", white);
     create_label(r, &r->help_wave, "0-6: Change Waveform", white);
-    create_label(r, &r->help_quit, "Q: End Program", white);
+    create_label(r, &r->help_quit, "ESC: End Program", white);
 
     r->last_wave = NULL;
     return 0;
@@ -217,6 +218,7 @@ void renderer_shutdown(struct Renderer *r) {
 
     destroy_label(&r->help_freq);
     destroy_label(&r->help_amp);
+    destroy_label(&r->help_type);
     destroy_label(&r->help_wave);
     destroy_label(&r->help_quit);
 
@@ -234,15 +236,15 @@ void render_frame(struct Renderer *r) {
 
     update_dynamic_labels(r);
 
-    r->freq_rect = (SDL_Rect){10,10,r->freq_label.w,r->freq_label.h};
+    r->freq_rect = (SDL_Rect){100,10,r->freq_label.w,r->freq_label.h};
     SDL_RenderCopy(r->sdl_renderer, r->freq_label.texture, NULL, &r->freq_rect);
 
-    r->amp_rect = (SDL_Rect){10,40,r->amp_label.w,r->amp_label.h};
+    r->amp_rect = (SDL_Rect){100,40,r->amp_label.w,r->amp_label.h};
     SDL_RenderCopy(r->sdl_renderer, r->amp_label.texture, NULL, &r->amp_rect);
 
     SDL_Rect dst;
 
-    dst = (SDL_Rect){10,70,r->wave_label.w,r->wave_label.h};
+    dst = (SDL_Rect){100,70,r->wave_label.w,r->wave_label.h};
     SDL_RenderCopy(r->sdl_renderer, r->wave_label.texture,NULL,&dst);
 
     dst = (SDL_Rect){10,130,r->help_freq.w,r->help_freq.h};
@@ -250,11 +252,14 @@ void render_frame(struct Renderer *r) {
 
     dst = (SDL_Rect){10,160,r->help_amp.w,r->help_amp.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_amp.texture,NULL,&dst);
+    
+    dst = (SDL_Rect){10,190, r->help_type.w,r->help_type.h};
+    SDL_RenderCopy(r->sdl_renderer,r->help_type.texture,NULL,&dst);
 
-    dst = (SDL_Rect){10,190,r->help_wave.w,r->help_wave.h};
+    dst = (SDL_Rect){10,220,r->help_wave.w,r->help_wave.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_wave.texture,NULL,&dst);
 
-    dst = (SDL_Rect){10,220,r->help_quit.w,r->help_quit.h};
+    dst = (SDL_Rect){10,250,r->help_quit.w,r->help_quit.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_quit.texture,NULL,&dst);
 
     SDL_RenderPresent(r->sdl_renderer);

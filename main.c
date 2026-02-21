@@ -6,8 +6,8 @@
 #include "renderer.h"
 #include "signal.h"
 
-#define WIDTH 300
-#define HEIGHT 260
+#define WIDTH 320
+#define HEIGHT 300
 
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
     float *buffer = (float *)stream;
@@ -63,7 +63,7 @@ static int handle_keydown(SDL_Event* e) {
         case SDLK_4: signal_set_waveform(WAVE_TRIANGLE); break;
         case SDLK_5: signal_set_waveform(WHITE_NOISE); break;
         case SDLK_6: signal_set_waveform(PINK_NOISE); break;
-        case SDLK_q: return 0;
+        case SDLK_ESCAPE: return 0;
     }
     return 1;
 }

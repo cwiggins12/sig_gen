@@ -49,6 +49,46 @@ static const char *waveform_names[] = {
     "PINK NOISE"
 };
 
+static uint32_t rng_state = 0x12345678;
+
+static uint32_t xorshift32() {
+    uint32_t x = rng_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    rng_state = x;
+    return x;
+}
+
+static float rand_uniform() {
+    return (xorshift32() >> 8) * (1.0f / 16777216.0f);
+}
+
+static float rand_gaussian(float stddev) {
+    static int has_spare = 0;
+    static float spare;
+
+    if (has_spare) {
+        has_spare = 0;
+        return spare * stddev;
+    }
+
+    float u, v, s;
+
+    do {
+        u = rand_uniform() * 2.0f - 1.0f;
+        v = rand_uniform() * 2.0f - 1.0f;
+        s = u * u + v * v;
+    } while (s >= 1.0f || s == 0.0f);
+
+    s = sqrtf(-2.0f * logf(s) / s);
+
+    spare = v * s;
+    has_spare = 1;
+
+    return stddev * (u * s);
+}
+
 void signal_init(int sr, SDL_AudioDeviceID d) {
     sample_rate = sr;
     phase = 0.0f;
@@ -59,6 +99,8 @@ void signal_init(int sr, SDL_AudioDeviceID d) {
 
     /* 5ms time constant */
     smoothing_coeff = 1.0f - expf(-1.0f / (0.005f * sample_rate));
+
+    rng_state = (uint32_t)time(NULL);
 
 //    const gsl_rng_type *rng_type = gsl_rng_mt19937;
 //    rng_generator = gsl_rng_alloc(rng_type);
@@ -93,6 +135,7 @@ void signal_set_amplitude(float amp) {
 }
 
 void signal_set_waveform(WaveType type) {
+    if (type == waveform) return;
     SDL_LockAudioDevice(device);
     next_waveform = type;
     waveform_change = 1;
@@ -137,11 +180,12 @@ static float generate_wave_sample(float phase) {
         }
 
         case WHITE_NOISE:
+            return rand_gaussian(0.25f);
             //return (float)gsl_ran_gaussian(rng_generator, 0.25f);
 
         case PINK_NOISE: {
-            float white = 0.0f; //(float)gsl_ran_gaussian(rng_generator, 0.25f);
-
+            //float white = (float)gsl_ran_gaussian(rng_generator, 0.25f);
+            float white = rand_gaussian(0.25f);
             pink_b0 = 0.99886f * pink_b0 + white * 0.0555179f;
             pink_b1 = 0.99332f * pink_b1 + white * 0.0750759f;
             pink_b2 = 0.96900f * pink_b2 + white * 0.1538520f;
