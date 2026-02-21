@@ -6,7 +6,6 @@ sig_gen is an audio signal generator with a minimal graphical interface, built w
 
 ![sig_gen screenshot placeholder](sig_gen_screenshot.png)
 
-
 ## Features
 - **7 waveform types:** Sine, Square, Saw, Triangle, White Noise, Pink Noise, and silence
 - **Real-time parameter control** via keyboard or by clicking and typing values directly
