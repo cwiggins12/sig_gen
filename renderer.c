@@ -157,14 +157,12 @@ static int init_font(struct Renderer *r) {
     if (TTF_Init() != 0) return -1;
 
     SDL_RWops *rw = SDL_RWFromConstMem(embedded_font, embedded_font_len);
-
     if (!rw) {
         printf("RWFromConstMem failed: %s\n", SDL_GetError());
         return -1;
     }
 
     r->font = TTF_OpenFontRW(rw, 1, 20);
-
     if (!r->font) {
         printf("TTF_OpenFontRW failed: %s\n", TTF_GetError());
         return -1;
@@ -191,14 +189,12 @@ int renderer_init(struct Renderer *r, int width, int height) {
     r->window = SDL_CreateWindow("Signal Generator",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         width, height, 0);
-
     if (!r->window) {
         return -1;
     }
 
     r->sdl_renderer = SDL_CreateRenderer(r->window, -1,
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-
     if (!r->sdl_renderer) {
         return -1;
     }

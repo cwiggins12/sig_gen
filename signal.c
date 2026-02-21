@@ -150,7 +150,7 @@ void signal_init(int sr, SDL_AudioDeviceID d) {
     current_frequency = target_frequency;
     current_amplitude = target_amplitude;
 
-    smoothing_coeff = 1.0f - expf(-1.0f / (0.005f * sample_rate));
+    smoothing_coeff = 1.0f - expf(-1.0f / (0.01f * sample_rate));
 
     rng_state = (uint32_t)time(NULL);
 

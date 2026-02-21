@@ -23,8 +23,7 @@ static int init_audio() {
     desired.samples = 1024;
     desired.callback = audio_callback;
 
-    SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &desired, 
-                                                         &obtained, 0);
+    SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, 0);
     if (audio_device == 0) {
         printf("Failed to open audio: %s \n", SDL_GetError());
         return 1;
@@ -94,7 +93,6 @@ static void shutdown(struct Renderer* r) {
 }
 
 int main() {
-    //initialize SDL, renderer, and audio
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         printf("SDL_Init Error: %s\n", SDL_GetError());
         return 1;
@@ -113,11 +111,9 @@ int main() {
         return 1;
     }
 
-    //set state and make event
     int running = 1;
     SDL_Event event;
 
-    //Poll event struct then render frame
     while (running) {
         while (SDL_PollEvent(&event)) {
             running = handle_event_poll(&renderer, &event);
