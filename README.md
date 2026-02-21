@@ -1,5 +1,6 @@
 # sig_gen
 I built this to test my current project fully and figured it might help out anyone looking for a good, cheap, and minimalist way to test any audio analysis tools or audio device output.
+
 sig_gen is an audio signal generator with a minimal graphical interface, built with C and SDL2. 
 
 
@@ -11,6 +12,7 @@ sig_gen is an audio signal generator with a minimal graphical interface, built w
 - **Real-time parameter control** via keyboard or by clicking and typing values directly
 - **Smooth parameter transitions** — all parameter changes are interpolated to avoid clicks and pops
 - **Embedded font** — no external font files needed at runtime
+  
 ## Controls
 | Input | Action |
 |---|---|
@@ -25,6 +27,7 @@ sig_gen is an audio signal generator with a minimal graphical interface, built w
 | `6` | Pink noise |
 | `ESC` | Quit |
 You can also **click** on the Frequency or Amplitude fields, **type** a value, and press **Enter** to set it directly. Valid ranges are 20–20000 Hz for frequency and 0.0–1.0 for amplitude.
+
 ## Building
 ### Dependencies
 | Platform | Requirements |
@@ -38,12 +41,14 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/sig_gen
 ```
+
 ## Switching Fonts
 The font is compiled directly into the binary. To use a different `.ttf` font:
 ```sh
 xxd -i yourfont.ttf > font_embedded.c
 ```
 Then update the variable names in `font_embedded.c` to match the `extern` declarations at the top of `renderer.c`, and make sure both arrays are declared `const`.
+
 ## License
 MIT
 
