@@ -22,13 +22,13 @@ While the interface is minimal, the underlying audio engine is designed with rea
 - **Thread-safe audio updates**  
   All parameter changes are synchronized using `SDL_LockAudioDevice`, ensuring safe communication between the UI thread and the real-time audio callback.
 
-- **Artifact-free waveform transitions**
+- **Artifact-free waveform transitions**  
   When switching waveforms, amplitude is smoothly ramped to zero before the waveform change occurs, avoiding transient artifacts.
 
-- **Gaussian white noise generation**
+- **Gaussian white noise generation**  
   White noise is generated using a Box–Muller transform driven by a xorshift32 pseudo-random number generator.
 
-- **Pink noise synthesis**
+- **Pink noise synthesis**  
   Pink noise is produced using a multi-stage filtered noise model to approximate a 1/f spectral distribution.
 
 - **Embedded font system**  
