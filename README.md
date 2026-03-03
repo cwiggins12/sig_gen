@@ -48,7 +48,8 @@ While the interface is minimal, the underlying audio engine is designed with rea
 | `6` | Pink noise |
 | `ESC` | Quit |
 
-You can also **click** on the Frequency or Amplitude fields, **type** a value, and press **Enter** to set it directly. Valid ranges are 20–20000 Hz for frequency and 0.0–1.0 for amplitude.
+You can also **click** on the Frequency or Amplitude fields, **type** a value, and press **Enter** to set it directly. 
+Valid ranges are 20–20000 Hz for frequency and 0.0–1.0 for amplitude.
 
 ## Building
 ### Dependencies
