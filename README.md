@@ -1,5 +1,5 @@
 # sig_gen
-I built this to test my current project fully and figured it might help out anyone looking for a good, cheap, and minimalist way to test any audio analysis tools or audio device output.
+I built this to test my current project fully and figured it might help out anyone looking for a good, cheap, high-quality and minimalist way to test any audio analysis tools or audio device output.
 
 sig_gen is an audio signal generator with a minimal graphical interface, built with C and SDL2. 
 
@@ -11,7 +11,29 @@ sig_gen is an audio signal generator with a minimal graphical interface, built w
 - **Real-time parameter control** via keyboard or by clicking and typing values directly
 - **Smooth parameter transitions** — all parameter changes are interpolated to avoid clicks and pops
 - **Embedded font** — no external font files needed at runtime
-  
+
+## Technical Implementation
+
+While the interface is minimal, the underlying audio engine is designed with real-time safety and signal integrity in mind:
+
+- **Per-sample parameter smoothing**  
+  Frequency and amplitude changes use a time-constant–based exponential smoothing model. This prevents discontinuities in the signal and eliminates audible clicks or pops during live adjustments.
+
+- **Thread-safe audio updates**  
+  All parameter changes are synchronized using `SDL_LockAudioDevice`, ensuring safe communication between the UI thread and the real-time audio callback.
+
+- **Artifact-free waveform transitions**
+  When switching waveforms, amplitude is smoothly ramped to zero before the waveform change occurs, avoiding transient artifacts.
+
+- **Gaussian white noise generation**
+  White noise is generated using a Box–Muller transform driven by a xorshift32 pseudo-random number generator.
+
+- **Pink noise synthesis**
+  Pink noise is produced using a multi-stage filtered noise model to approximate a 1/f spectral distribution.
+
+- **Embedded font system**  
+  The UI font is compiled directly into the binary using `xxd -i`, removing runtime font dependencies and keeping the executable self-contained.
+
 ## Controls
 | Input | Action |
 |---|---|
