@@ -17,19 +17,19 @@ sig_gen is an audio signal generator with a minimal graphical interface, built w
 While the interface is minimal, the underlying audio engine is designed with real-time safety and signal integrity in mind:
 
 - **Per-sample parameter smoothing**  
-  Frequency and amplitude changes use a time-constant–based exponential smoothing model. This prevents discontinuities in the signal and eliminates audible clicks or pops during live adjustments.
-
-- **Thread-safe audio updates**  
-  All parameter changes are synchronized using `SDL_LockAudioDevice`, ensuring safe communication between the UI thread and the real-time audio callback.
+  Frequency changes use a multiplicative ramp over a fixed time constant, which produces perceptually even glides across the frequency range since pitch is logarithmic. Amplitude changes use a linear ramp over the same time constant. Both approaches skip the smoothing math entirely when no change is in progress, avoiding unnecessary per-sample computation.
 
 - **Artifact-free waveform transitions**  
-  When switching waveforms, amplitude is smoothly ramped to zero before the waveform change occurs, avoiding transient artifacts.
+  When switching waveforms, amplitude is smoothly ramped to zero before the waveform change occurs and then ramped back up, avoiding transient artifacts.
+
+- **Device-native audio format**  
+  The audio device is opened at the system's native sample rate and channel count using `SDL_GetAudioDeviceSpec`, avoiding resampling and ensuring phase-accurate output at all frequencies.
 
 - **Gaussian white noise generation**  
   White noise is generated using a Box–Muller transform driven by a xorshift32 pseudo-random number generator.
 
 - **Pink noise synthesis**  
-  Pink noise is produced using a multi-stage filtered noise model to approximate a 1/f spectral distribution.
+  Pink noise is produced using a multi-stage filtered noise model to approximate a 1/f spectral distribution. Output is clamped to [-1, 1] to prevent clipping from filter state accumulation.
 
 - **Embedded font system**  
   The UI font is compiled directly into the binary using `xxd -i`, removing runtime font dependencies and keeping the executable self-contained.
@@ -52,24 +52,37 @@ You can also **click** on the Frequency or Amplitude fields, **type** a value, a
 
 Valid ranges are 20–20000 Hz for frequency and 0.0–1.0 for amplitude.
 
+## Download
+Pre-built standalone binaries for Linux and Windows are available on the [Releases](../../releases) page — no dependencies or installation required, just download and run.
+
 ## Building
+Both builds are statically linked, producing a single self-contained executable with no runtime dependencies.
+
 ### Dependencies
 | Platform | Requirements |
 |---|---|
-| **Linux** | `cmake`, a C compiler, `SDL2-dev`, `SDL2-ttf-dev` |
-| **macOS** | Xcode command line tools, `cmake`, `SDL2`, `SDL2_ttf` |
-| **Windows** | `cmake`, a C compiler, SDL2 and SDL2_ttf dev libraries |
-### Build & Run
+| **Linux** | `cmake`, a C compiler, `libsdl2-dev`, `libsdl2-ttf-dev` |
+| **Windows** | MinGW-w64, `cmake`, [vcpkg](https://github.com/microsoft/vcpkg) with `sdl2` and `sdl2-ttf` installed for the `x64-mingw-static` triplet |
+
+### Linux
 ```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --preset linux
 cmake --build build
 ./build/sig_gen
+```
+
+### Windows
+Set the `VCPKG_ROOT` environment variable to your vcpkg installation path, then:
+```powershell
+cmake --preset windows
+cmake --build build
+.\build\sig_gen.exe
 ```
 
 ## Switching Fonts
 The font is compiled directly into the binary. To use a different `.ttf` font:
 ```sh
-xxd -i yourfont.ttf > font_embedded.c
+xxd -i yourfont.ttf > src/font_embedded.c
 ```
 Then update the variable names in `font_embedded.c` to match the `extern` declarations at the top of `renderer.c`, and make sure both arrays are declared `const`.
 

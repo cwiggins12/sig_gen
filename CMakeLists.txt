@@ -25,19 +25,13 @@ endif()
 target_compile_options(sig_gen PRIVATE -Wall -Wextra)
 
 target_link_libraries(sig_gen
-    SDL2::SDL2
-    SDL2_ttf::SDL2_ttf
+    SDL2::SDL2-static
+    SDL2_ttf::SDL2_ttf-static
 )
 
 if(WIN32)
     target_link_libraries(sig_gen SDL2::SDL2main)
-    target_link_options(sig_gen PRIVATE -mwindows)
-    add_custom_command(TARGET sig_gen POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:SDL2::SDL2>
-            $<TARGET_FILE:SDL2_ttf::SDL2_ttf>
-            $<TARGET_FILE_DIR:sig_gen>
-    )
+    target_link_options(sig_gen PRIVATE -mwindows -static)
 else()
     target_link_libraries(sig_gen m)
 endif()
