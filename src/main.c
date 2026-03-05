@@ -6,10 +6,14 @@
 
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
     float *buffer = (float *)stream;
-    int samples = len / sizeof(float);
+    int channels = signal_get_channels();
+    int frames = (len / sizeof(float)) / channels;
 
-    for (int i = 0; i < samples; ++i) {
-        buffer[i] = signal_next_sample();
+    for (int i = 0; i < frames; ++i) {
+        float sample = signal_next_sample();
+        for (int ch = 0; ch < channels; ++ch) {
+            buffer[i * channels + ch] = sample;
+        }
     }
 }
 
@@ -17,9 +21,8 @@ static int init_audio() {
     SDL_AudioSpec desired = {0};
     SDL_AudioSpec obtained = {0};
 
-    desired.freq = 48000;
+    SDL_GetAudioDeviceSpec(0, 0, &desired);
     desired.format = AUDIO_F32SYS;
-    desired.channels = 1;
     desired.samples = 1024;
     desired.callback = audio_callback;
 
@@ -29,8 +32,7 @@ static int init_audio() {
         return 1;
     }
 
-    signal_init(obtained.freq, audio_device);
-
+    signal_init(obtained.freq, obtained.channels, audio_device);
     SDL_PauseAudioDevice(audio_device, 0);
     return 0;
 }
@@ -92,36 +94,28 @@ static void shutdown(struct Renderer* r) {
     SDL_Quit();
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
-        printf("SDL_Init Error: %s\n", SDL_GetError());
         return 1;
     }
-
-    struct Renderer renderer;
-
-    if (renderer_init(&renderer, WIDTH, HEIGHT) != 0) {
-        SDL_Quit();
-        return 1;
-    }
-
     if (init_audio() != 0) {
-        renderer_shutdown(&renderer);
         SDL_Quit();
         return 1;
     }
-
+    struct Renderer renderer;
+    if (renderer_init(&renderer, WIDTH, HEIGHT) != 0) {
+        SDL_CloseAudioDevice(signal_get_device());
+        SDL_Quit();
+        return 1;
+    }
     int running = 1;
     SDL_Event event;
-
     while (running) {
         while (SDL_PollEvent(&event)) {
             running = handle_event_poll(&renderer, &event);
         }
         render_frame(&renderer);
     }
-
     shutdown(&renderer);
     return 0;
 }
-
