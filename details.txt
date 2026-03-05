@@ -1,8 +1,0 @@
-Windows:
-cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=C:/Users/Cody/Desktop/PiProjects/vc/vcpkg/scripts/buildsystems/vcpkg.cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DVCPKG_TARGET_TRIPLET=x64-mingw-dynamic
-
-cmake --build build
-
-Linux:
-cmake -B . -S build
-cmake --build build

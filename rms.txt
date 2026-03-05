@@ -1,3 +1,0 @@
-white RMS: 0.249975
-pink RMS: 0.213795
-scalar: 1.169225
