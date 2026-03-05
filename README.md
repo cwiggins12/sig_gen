@@ -34,6 +34,8 @@ While the interface is minimal, the underlying audio engine is designed with rea
 - **Embedded font system**  
   The UI font is compiled directly into the binary using `xxd -i`, removing runtime font dependencies and keeping the executable self-contained.
 
+You can find more implementation for the application here: [codywigginsdev.neocities.org/sig_gen](https://codywigginsdev.neocities.org/sig_gen)
+
 ## Controls
 | Input | Action |
 |---|---|
