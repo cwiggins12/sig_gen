@@ -193,7 +193,7 @@ int renderer_init(struct Renderer *r, int width, int height) {
     r->height = height;
     r->edit_mode = EDIT_NONE;
 
-    r->window = SDL_CreateWindow("Signal Generator",
+    r->window = SDL_CreateWindow("sig_gen",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         width, height, 0);
     if (!r->window) {
