@@ -34,6 +34,8 @@ While the interface is minimal, the underlying audio engine is designed with rea
 - **Embedded font system**  
   The UI font is compiled directly into the binary using `xxd -i`, removing runtime font dependencies and keeping the executable self-contained.
 
+You can find more implementation for the application here: [codywigginsdev.neocities.org/sig_gen](https://codywigginsdev.neocities.org/sig_gen)
+
 ## Controls
 | Input | Action |
 |---|---|
@@ -53,7 +55,10 @@ You can also **click** on the Frequency or Amplitude fields, **type** a value, a
 Valid ranges are 20–20000 Hz for frequency and 0.0–1.0 for amplitude.
 
 ## Download
-Pre-built standalone binaries for Linux and Windows are available on the [Releases](../../releases) page — no dependencies or installation required, just download and run.
+Pre-built binaries for Linux and Windows are available on the [Releases](../../releases) page.
+
+- **Windows:** Fully statically linked — no dependencies or installation required, just download and run. Tested on Windows 11 x64.
+- **Linux:** Built on Ubuntu 22.04. Requires glibc 2.35 or newer. Most modern distros (Ubuntu 22.04+, Debian 12+, Fedora 36+) will work out of the box.
 
 ## Building
 Both builds are statically linked, producing a single self-contained executable with no runtime dependencies.
