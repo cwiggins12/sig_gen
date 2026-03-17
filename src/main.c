@@ -5,6 +5,7 @@
 #define HEIGHT 300
 
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
+    (void)userdata;
     float *buffer = (float *)stream;
     int channels = signal_get_channels();
     int frames = (len / sizeof(float)) / channels;
@@ -95,6 +96,8 @@ static void shutdown(struct Renderer* r) {
 }
 
 int main(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         return 1;
     }

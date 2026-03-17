@@ -10,7 +10,6 @@ static int create_label(struct Renderer *r, struct Label *label,
     if (!surface) return -1;
 
     label->texture = SDL_CreateTextureFromSurface(r->sdl_renderer, surface);
-
     label->w = surface->w;
     label->h = surface->h;
 
@@ -26,34 +25,39 @@ static void destroy_label(struct Label *l) {
 }
 
 static void update_freq_label(struct Renderer *r) {
-    SDL_Color white = {255,255,255,255};
+    SDL_Color white  = {255,255,255,255};
     SDL_Color yellow = {255,255,0,255};
 
-    destroy_label(&r->freq_label);
-
     if (r->edit_mode == EDIT_FREQ) {
-        if (strlen(r->edit_buffer) == 0)
+        // In edit mode, rebuild every frame so the typed buffer is reflected.
+        destroy_label(&r->freq_label);
+        if (strlen(r->edit_buffer) == 0) {
             create_label(r, &r->freq_label, "Frequency: ", yellow);
-        else {
+        } else {
             char text[64];
             snprintf(text, sizeof(text), "Frequency: %s", r->edit_buffer);
             create_label(r, &r->freq_label, text, yellow);
         }
-    }
-    else {
-        char text[64];
-        snprintf(text, sizeof(text), "Frequency: %.1f Hz", signal_get_frequency());
-        create_label(r, &r->freq_label, text, white);
+        r->last_freq = -1.0f; // invalidate so it rebuilds when edit mode exits
+    } else {
+        float freq = signal_get_frequency();
+        if (freq != r->last_freq) {
+            destroy_label(&r->freq_label);
+            char text[64];
+            snprintf(text, sizeof(text), "Frequency: %.1f Hz", freq);
+            create_label(r, &r->freq_label, text, white);
+            r->last_freq = freq;
+        }
     }
 }
 
 static void update_amp_label(struct Renderer *r) {
-    SDL_Color white = {255,255,255,255};
+    SDL_Color white  = {255,255,255,255};
     SDL_Color yellow = {255,255,0,255};
 
-    destroy_label(&r->amp_label);
-
     if (r->edit_mode == EDIT_AMP) {
+        // In edit mode, rebuild every frame so the typed buffer is reflected.
+        destroy_label(&r->amp_label);
         if (strlen(r->edit_buffer) == 0) {
             create_label(r, &r->amp_label, "Amplitude: ", yellow);
         } else {
@@ -61,21 +65,25 @@ static void update_amp_label(struct Renderer *r) {
             snprintf(text, sizeof(text), "Amplitude: %s", r->edit_buffer);
             create_label(r, &r->amp_label, text, yellow);
         }
+        r->last_amp = -1.0f; // invalidate so it rebuilds when edit mode exits
     } else {
-        char text[64];
-        snprintf(text, sizeof(text), "Amplitude: %.2f", signal_get_amplitude());
-        create_label(r, &r->amp_label, text, white);
+        float amp = signal_get_amplitude();
+        if (amp != r->last_amp) {
+            destroy_label(&r->amp_label);
+            char text[64];
+            snprintf(text, sizeof(text), "Amplitude: %.2f", amp);
+            create_label(r, &r->amp_label, text, white);
+            r->last_amp = amp;
+        }
     }
 }
 
 static void update_wave_label(struct Renderer *r) {
-    SDL_Color white  = {255,255,255,255};
-    char text[64];
-
+    SDL_Color white = {255,255,255,255};
     const char *wave = signal_get_waveform();
-
     if (wave != r->last_wave) {
         destroy_label(&r->wave_label);
+        char text[64];
         snprintf(text, sizeof(text), "Waveform: %s", wave);
         create_label(r, &r->wave_label, text, white);
         r->last_wave = wave;
@@ -118,8 +126,7 @@ static void handle_key_down(struct Renderer *r, SDL_Event *e) {
         if (valid_number) {
             if (r->edit_mode == EDIT_FREQ && value >= 20.0f && value <= 20000.0f) {
                 signal_set_frequency(value);
-            }
-            else if (r->edit_mode == EDIT_AMP && value >= 0.0f && value <= 1.0f) {
+            } else if (r->edit_mode == EDIT_AMP && value >= 0.0f && value <= 1.0f) {
                 signal_set_amplitude(value);
             }
         }
@@ -178,6 +185,8 @@ static void init_labels(struct Renderer *r) {
     create_label(r, &r->help_wave, "0-6: Change Waveform", white);
     create_label(r, &r->help_quit, "ESC: End Program", white);
     r->last_wave = NULL;
+    r->last_freq = -1.0f;
+    r->last_amp  = -1.0f;
 
     const char *wave = signal_get_waveform();
     char text[64];
@@ -189,29 +198,22 @@ static void init_labels(struct Renderer *r) {
 int renderer_init(struct Renderer *r, int width, int height) {
     memset(r, 0, sizeof(struct Renderer));
 
-    r->width = width;
+    r->width  = width;
     r->height = height;
     r->edit_mode = EDIT_NONE;
 
     r->window = SDL_CreateWindow("sig_gen",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         width, height, 0);
-    if (!r->window) {
-        return -1;
-    }
+    if (!r->window) return -1;
 
     r->sdl_renderer = SDL_CreateRenderer(r->window, -1,
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!r->sdl_renderer) {
-        return -1;
-    }
+    if (!r->sdl_renderer) return -1;
 
-    if (init_font(r) == -1) {
-        return -1;
-    }
+    if (init_font(r) == -1) return -1;
 
     init_labels(r);
-
     return 0;
 }
 
@@ -232,37 +234,36 @@ void renderer_shutdown(struct Renderer *r) {
     if (r->window) SDL_DestroyWindow(r->window);
 }
 
-void render_frame(struct Renderer *r) {    
+void render_frame(struct Renderer *r) {
     SDL_SetRenderDrawColor(r->sdl_renderer, 0, 0, 0, 255);
-    
     SDL_RenderClear(r->sdl_renderer);
 
     update_freq_label(r);
     update_amp_label(r);
     update_wave_label(r);
 
-    r->freq_rect = (SDL_Rect){100,10,r->freq_label.w,r->freq_label.h};
+    r->freq_rect = (SDL_Rect){100, 10, r->freq_label.w, r->freq_label.h};
     SDL_RenderCopy(r->sdl_renderer, r->freq_label.texture, NULL, &r->freq_rect);
 
-    r->amp_rect = (SDL_Rect){100,40,r->amp_label.w,r->amp_label.h};
+    r->amp_rect = (SDL_Rect){100, 40, r->amp_label.w, r->amp_label.h};
     SDL_RenderCopy(r->sdl_renderer, r->amp_label.texture, NULL, &r->amp_rect);
 
-    SDL_Rect dst = (SDL_Rect){100,70,r->wave_label.w,r->wave_label.h};
+    SDL_Rect dst = (SDL_Rect){100, 70, r->wave_label.w, r->wave_label.h};
     SDL_RenderCopy(r->sdl_renderer, r->wave_label.texture, NULL, &dst);
 
-    dst = (SDL_Rect){10,130,r->help_freq.w,r->help_freq.h};
+    dst = (SDL_Rect){10, 130, r->help_freq.w, r->help_freq.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_freq.texture, NULL, &dst);
 
-    dst = (SDL_Rect){10,160,r->help_amp.w,r->help_amp.h};
+    dst = (SDL_Rect){10, 160, r->help_amp.w, r->help_amp.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_amp.texture, NULL, &dst);
 
-    dst = (SDL_Rect){10,190,r->help_type.w,r->help_type.h};
+    dst = (SDL_Rect){10, 190, r->help_type.w, r->help_type.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_type.texture, NULL, &dst);
 
-    dst = (SDL_Rect){10,220,r->help_wave.w,r->help_wave.h};
+    dst = (SDL_Rect){10, 220, r->help_wave.w, r->help_wave.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_wave.texture, NULL, &dst);
 
-    dst = (SDL_Rect){10,250,r->help_quit.w,r->help_quit.h};
+    dst = (SDL_Rect){10, 250, r->help_quit.w, r->help_quit.h};
     SDL_RenderCopy(r->sdl_renderer, r->help_quit.texture, NULL, &dst);
 
     SDL_RenderPresent(r->sdl_renderer);

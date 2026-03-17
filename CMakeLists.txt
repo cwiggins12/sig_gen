@@ -23,12 +23,9 @@ else()
     )
 endif()
 
-target_compile_options(sig_gen PRIVATE -Wall -Wextra)
+target_compile_options(sig_gen PRIVATE -Wall -Wextra -O3)
 
-target_link_libraries(sig_gen
-    SDL2::SDL2-static
-    SDL2_ttf::SDL2_ttf-static
-)
+target_link_libraries(sig_gen SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static)
 
 if(WIN32)
     target_link_libraries(sig_gen SDL2::SDL2main)
