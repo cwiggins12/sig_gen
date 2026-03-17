@@ -23,7 +23,7 @@ While the interface is minimal, the underlying audio engine is designed with rea
   When switching waveforms, amplitude is smoothly ramped to zero before the waveform change occurs and then ramped back up, avoiding transient artifacts.
   
 - **Anti-aliasing via oversampling and FIR decimation**  
-  Signal generation runs internally at 4× the output sample rate. Waveform transitions are pre-conditioned using PolyBLEP and PolyBLAMP to reduce harmonic content at the source, and a 256-tap windowed sinc FIR filter is applied before decimation to suppress any remaining aliasing fold-back to over 80dB below signal level at output Nyquist. Together these produce a clean spectrum comparable to a hardware reference generator.
+  Signal generation runs internally at 4× the device native sample rate. Waveform transitions are pre-conditioned using PolyBLEP and PolyBLAMP, and a 256-tap windowed FIR filter is applied before decimation. Together these produce a clean spectrum comparable to a hardware reference generator.
   
 - **Device-native audio format**  
   The audio device is opened at the system's native sample rate and channel count using `SDL_GetAudioDeviceSpec`, avoiding unnecessary resampling and ensuring phase-accurate output at all frequencies.
