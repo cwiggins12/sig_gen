@@ -21,9 +21,12 @@ While the interface is minimal, the underlying audio engine is designed with rea
 
 - **Artifact-free waveform transitions**  
   When switching waveforms, amplitude is smoothly ramped to zero before the waveform change occurs and then ramped back up, avoiding transient artifacts.
-
+  
+- **Anti-aliasing via oversampling and FIR decimation**  
+  Signal generation runs internally at 4× the output sample rate. Waveform transitions are pre-conditioned using PolyBLEP and PolyBLAMP to reduce harmonic content at the source, and a 256-tap windowed sinc FIR filter is applied before decimation to suppress any remaining aliasing fold-back to over 80dB below signal level at output Nyquist. Together these produce a clean spectrum comparable to a hardware reference generator.
+  
 - **Device-native audio format**  
-  The audio device is opened at the system's native sample rate and channel count using `SDL_GetAudioDeviceSpec`, avoiding resampling and ensuring phase-accurate output at all frequencies.
+  The audio device is opened at the system's native sample rate and channel count using `SDL_GetAudioDeviceSpec`, avoiding unnecessary resampling and ensuring phase-accurate output at all frequencies.
 
 - **Gaussian white noise generation**  
   White noise is generated using a Box–Muller transform driven by a xorshift32 pseudo-random number generator.
@@ -58,7 +61,7 @@ Valid ranges are 20–20000 Hz for frequency and 0.0–1.0 for amplitude.
 Pre-built binaries for Linux and Windows are available on the [Releases](../../releases) page.
 
 - **Windows:** Fully statically linked — no dependencies or installation required, just download and run. Tested on Windows 11 x64.
-- **Linux:** Built on Ubuntu 22.04. Requires glibc 2.35 or newer. Most modern distros (Ubuntu 22.04+, Debian 12+, Fedora 36+) will work out of the box.
+- **Linux:** Built on Ubuntu 22.04. Fully statically linked. Most modern distros (Ubuntu 22.04+, Debian 12+, Fedora 36+) will work out of the box.
 
 ## Building
 Both builds are statically linked, producing a single self-contained executable with no runtime dependencies.
@@ -84,7 +87,7 @@ cmake --build build
 .\build\sig_gen.exe
 ```
 
-## Switching Fonts
+## Switching Fonts(Linux)
 The font is compiled directly into the binary. To use a different `.ttf` font:
 ```sh
 xxd -i yourfont.ttf > src/font_embedded.c
