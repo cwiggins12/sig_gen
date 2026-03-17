@@ -9,7 +9,6 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
     float *buffer = (float *)stream;
     int channels = signal_get_channels();
     int frames = (len / sizeof(float)) / channels;
-
     for (int i = 0; i < frames; ++i) {
         float sample = signal_next_sample();
         for (int ch = 0; ch < channels; ++ch) {
@@ -24,7 +23,7 @@ static int init_audio() {
 
     SDL_GetAudioDeviceSpec(0, 0, &desired);
     desired.format = AUDIO_F32SYS;
-    desired.samples = 4096;
+    desired.samples = 8192;
     desired.callback = audio_callback;
 
     SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, 0);

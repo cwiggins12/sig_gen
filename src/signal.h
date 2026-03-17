@@ -14,7 +14,6 @@ typedef enum {
 } WaveType;
 
 void signal_init(int sample_rate, int channels, SDL_AudioDeviceID d);
-void signal_shutdown();
 
 float signal_next_sample(void);
 
@@ -29,4 +28,3 @@ int signal_get_channels();
 SDL_AudioDeviceID signal_get_device();
 
 #endif
-

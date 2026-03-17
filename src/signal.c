@@ -9,10 +9,12 @@
 #define RAMP_TIME_S 0.01f
 #define OVERSAMPLE_FACTOR 4
 
+//these are initial guesses for setup, but will be changed according to the native device settings
 static int output_sample_rate   = 48000;
 static int internal_sample_rate = 48000 * OVERSAMPLE_FACTOR;
 static int channels = 2;
 
+//these are for the multiplicative/linear ramps to smoothly adjust freq and amp
 static float target_frequency = 440.0f;
 static float current_frequency = 440.0f;
 static float freq_ratio = 1.0f;
@@ -23,13 +25,14 @@ static float current_amplitude = 0.5f;
 static float amp_increment = 0.0f;
 static int amp_steps_remaining = 0;
 
+//pending and next are used for crossfading to avoid pops. amp lerps to 0, swaps, then lerps back up on change
 static WaveType waveform = WAVE_SINE;
 static int waveform_pending = 0;
 static WaveType next_waveform = NONE;
 
-//counter-based phase: phase is computed as (sample_counter * current_frequency / internal_sample_rate).
-//phase_offset is used to ensure phase continuity when frequency changes mid-stream.
-//both operate at the internal (oversampled) rate.
+//counter-based phase: phase is computed as (sample_counter * current_frequency / internal_sample_rate)
+//phase_offset is used to ensure phase continuity when frequency changes mid-stream
+//both operate at the internal (oversampled) rate
 static uint64_t sample_counter = 0;
 static double phase_offset = 0.0;
 
@@ -44,21 +47,21 @@ static float pink_b5 = 0.0f;
 static float pink_b6 = 0.0f;
 
 //double buffer for FIR filter delay line
-//this will get vectorized, 256 floats spent for a -50% ipc compared to circular. Worth
+//this will get vectorized, space of 256 floats spent for a -50% ipc compared to circular. Worth it
 static float fir_buf[FIR_TAPS * 2];
 static int fir_buf_pos = 0;
 
-// Push a sample into the FIR delay line without computing the output.
-// Used for the first OVERSAMPLE_FACTOR-1 internal samples where the
-// output is discarded anyway -- saves 3 out of 4 dot product computations.
+//push a sample into the FIR delay line without computing the output
+//used for the first OVERSAMPLE_FACTOR-1 internal samples where the
+//output is discarded anyway, saves 3 out of 4 dot product computations
 static void fir_push(float x) {
     fir_buf[fir_buf_pos] = x;
     fir_buf[fir_buf_pos + FIR_TAPS] = x;
     if (++fir_buf_pos >= FIR_TAPS) fir_buf_pos = 0;
 }
 
-// Push a sample and compute the FIR output. Used only on the final
-// internal sample per output sample where the result is actually needed.
+//push a sample and compute the FIR output
+//used only on the final internal sample per output sample where the result is actually needed
 static float fir_push_and_compute(float x) {
     fir_buf[fir_buf_pos] = x;
     fir_buf[fir_buf_pos + FIR_TAPS] = x;
@@ -77,6 +80,7 @@ static const char *waveform_names[] = {
     "NONE", "SINE", "SQUARE", "SAW", "TRIANGLE", "WHITE NOISE", "PINK NOISE"
 };
 
+//WHITE AND PINK NOISE GENERATION
 static uint32_t rng_state = 0x12345678;
 
 static uint32_t xorshift32() {
@@ -110,6 +114,10 @@ static float rand_gaussian(float stddev) {
 
 static float generate_pink() {
     float white = rand_gaussian(0.2f);
+    //estimated 1/f
+    //FULL DISCLOSURE: These coefficients have been generated
+    //while they have been tested against several other pinx noise generators
+    //and have proven to be good, I still feel like I gotta let it be known
     pink_b0 = 0.99886f * pink_b0 + white * 0.0555179f;
     pink_b1 = 0.99332f * pink_b1 + white * 0.0750759f;
     pink_b2 = 0.96900f * pink_b2 + white * 0.1538520f;
@@ -121,7 +129,7 @@ static float generate_pink() {
                  pink_b6 + white * 0.5362f;
     pink_b6 = white * 0.115926f;
     //scalar found through testing to roughly cover some of the rms difference without hitting the clamp too hard
-    //the commented out test can give a better scalar to better match the rms of the other signals if wanted
+    //the commented out test in init can give a scalar to possibly better match the rms of the other signals if wanted
     return pink * 0.325f;
 }
 
@@ -156,6 +164,7 @@ static double get_phase() {
     return phase;
 }
 
+//start multiplicative smoothing ramp on freq change
 static void start_freq_ramp(float from, float to) {
     if (from == to) {
         current_frequency = to;
@@ -169,6 +178,7 @@ static void start_freq_ramp(float from, float to) {
     sample_counter = 0;
 }
 
+//start linear smoothing ramp on amp change
 static void start_amp_ramp(float from, float to) {
     if (from == to) {
         current_amplitude = to;
@@ -179,6 +189,7 @@ static void start_amp_ramp(float from, float to) {
     amp_increment = (to - from) / (float)amp_steps_remaining;
 }
 
+//clamped public setters that start ramps if necessary
 void signal_set_frequency(float freq) {
     if (freq < 20.0f)           target_frequency = 20.0f;
     else if (freq > 20000.0f)   target_frequency = 20000.0f;
@@ -202,6 +213,7 @@ void signal_set_waveform(WaveType type) {
     start_amp_ramp(current_amplitude, 0.0f);
 }
 
+//GETTERS
 float signal_get_frequency()          { return target_frequency; }
 float signal_get_amplitude()          { return target_amplitude; }
 int   signal_get_channels()           { return channels; }
@@ -212,8 +224,9 @@ const char* signal_get_waveform() {
     return waveform_names[waveform];
 }
 
+//resets sample rates if not 48k, inits necessary vars, and set hardware denormal flush if possible
 void signal_init(int sr, int ch, SDL_AudioDeviceID d) {
-    output_sample_rate   = sr;
+    output_sample_rate = sr;
     internal_sample_rate = sr * OVERSAMPLE_FACTOR;
     channels = ch;
     device = d;
@@ -298,10 +311,10 @@ static float generate_wave_sample(float phase, float phase_increment) {
     }
 }
 
-// Advance all internal state by one internal-rate sample and return the
-// generated sample. The caller decides whether to push-only or push-and-compute
-// the FIR, so the filter call is not made here for non-noise waveforms.
-// For noise, FIR is skipped entirely as noise is broadband by nature.
+//advance all internal state by one internal-rate sample and return the
+//generated sample. The caller decides whether to push-only or push-and-compute
+//the FIR, so the filter call is not made here for non-noise waveforms
+//for noise, FIR is skipped entirely as noise is broadband by nature
 static float next_internal_sample(void) {
     if (freq_steps_remaining > 0) {
         current_frequency *= freq_ratio;
@@ -330,17 +343,17 @@ static float next_internal_sample(void) {
 
     float sample = generate_wave_sample(phase, phase_increment) * current_amplitude;
 
-    //if (fabsf(sample) < 1e-20f) sample = 0.0f;
+    if (fabsf(sample) < 1e-20f) sample = 0.0f;
     return sample;
 }
 
-// Entry point called by the SDL audio callback.
-// Runs OVERSAMPLE_FACTOR internal samples per output sample.
-// For non-noise waveforms: the first OVERSAMPLE_FACTOR-1 samples are pushed
-// into the FIR delay line without computing the output (cheap), and only the
-// final sample triggers the full dot product (expensive). This saves 75% of
-// the FIR compute cost while maintaining correct filter state throughout.
-// For noise waveforms: FIR is bypassed entirely, just return the last sample.
+//SDL audio callback entry point
+//runs OVERSAMPLE_FACTOR internal samples per output sample
+//for non-noise waveforms: the first OVERSAMPLE_FACTOR-1 samples are pushed
+//into the FIR delay line without computing the output (cheap), and only the
+//final sample triggers the full dot product (expensive). 
+//This saves 75% of the FIR compute cost while maintaining correct filter state throughout
+//for noise waveforms: FIR is bypassed entirely, just return the last sample.
 float signal_next_sample(void) {
     switch (waveform) {
         case WHITE_NOISE:
