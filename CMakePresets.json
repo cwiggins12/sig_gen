@@ -8,7 +8,9 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_TARGET_TRIPLET": "x64-mingw-static"
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
+        "SIG_GEN_EXTRA_LIBS": "SDL2::SDL2main",
+        "SIG_GEN_EXTRA_LINK_OPTIONS": "-mwindows;-static"
       }
     },
     {
@@ -16,7 +18,9 @@
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "SIG_GEN_EXTRA_LIBS": "m",
+        "SIG_GEN_EXTRA_LINK_OPTIONS": ""
       }
     }
   ]
