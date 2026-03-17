@@ -23,7 +23,7 @@ static int init_audio() {
 
     SDL_GetAudioDeviceSpec(0, 0, &desired);
     desired.format = AUDIO_F32SYS;
-    desired.samples = 1024;
+    desired.samples = 4096;
     desired.callback = audio_callback;
 
     SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, 0);

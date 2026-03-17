@@ -1,8 +1,9 @@
 #include "signal.h"
 #include <time.h>
 #include <math.h>
+#include <stdio.h>
 
-#define PI 3.14159265358979323846f
+#define TWO_PI 6.28318530717958647692
 #define RAMP_TIME_S 0.01f
 
 static int sample_rate = 48000;
@@ -22,11 +23,12 @@ static WaveType waveform = WAVE_SINE;
 static int waveform_pending = 0;
 static WaveType next_waveform = NONE;
 
-static float phase = 0.0f;
-static float phase_increment = 0.0f;
+// Counter-based phase: phase is computed as (sample_counter * current_frequency / sample_rate)
+// phase_offset is used to ensure phase continuity when frequency changes mid-stream
+static uint64_t sample_counter = 0;
+static double phase_offset = 0.0;
 
 static SDL_AudioDeviceID device = 0;
-
 
 static float pink_b0 = 0.0f;
 static float pink_b1 = 0.0f;
@@ -106,15 +108,54 @@ static float generate_pink() {
     return pink * 0.325f;
 }
 
+// Corrects a unit-step discontinuity (used for saw and square).
+// phase is the current normalized phase [0, 1).
+// phase_increment is the per-sample phase step (frequency / sample_rate).
+static float polyblep(float phase, float phase_increment) {
+    if (phase < phase_increment) {
+        float t = phase / phase_increment;
+        return t + t - t * t - 1.0f;
+    } else if (phase > 1.0f - phase_increment) {
+        float t = (phase - 1.0f) / phase_increment;
+        return t * t + t + t + 1.0f;
+    }
+    return 0.0f;
+}
+
+// Corrects a slope discontinuity (used for triangle).
+// Smooths the points where the derivative instantaneously reverses.
+static float polyblamp(float phase, float phase_increment) {
+    if (phase < phase_increment) {
+        float t = phase / phase_increment - 1.0f;
+        return -1.0f / 3.0f * t * t * t;
+    } else if (phase > 1.0f - phase_increment) {
+        float t = (phase - 1.0f) / phase_increment + 1.0f;
+        return 1.0f / 3.0f * t * t * t;
+    }
+    return 0.0f;
+}
+
+// Returns the current phase in [0, 1) without accumulation error.
+// phase_offset absorbs any phase discontinuity from frequency changes.
+static double get_phase() {
+    double phase = phase_offset + (double)current_frequency * (double)sample_counter / (double)sample_rate;
+    phase -= floor(phase);
+    return phase;
+}
+
 static void start_freq_ramp(float from, float to) {
     if (from == to) {
         current_frequency = to;
-        phase_increment = 2.0f * PI * current_frequency / (float)sample_rate;
         freq_steps_remaining = 0;
         return;
     }
+    // Capture current phase before changing frequency so get_phase() stays continuous
+    double current_phase = get_phase();
     freq_steps_remaining = (int)(RAMP_TIME_S * sample_rate);
     freq_ratio = powf(to / from, 1.0f / (float)freq_steps_remaining);
+    // Rebase the counter: reset to 0 and fold the current phase into phase_offset
+    phase_offset = current_phase;
+    sample_counter = 0;
 }
 
 static void start_amp_ramp(float from, float to) {
@@ -177,8 +218,10 @@ SDL_AudioDeviceID signal_get_device() {
 void signal_init(int sr, int ch, SDL_AudioDeviceID d) {
     sample_rate = sr;
     channels = ch;
-    phase = 0.0f;
     device = d;
+
+    sample_counter = 0;
+    phase_offset = 0.0;
 
     current_frequency = target_frequency;
     freq_steps_remaining = 0;
@@ -189,8 +232,6 @@ void signal_init(int sr, int ch, SDL_AudioDeviceID d) {
     amp_increment = 0.0f;
 
     waveform_pending = 0;
-
-    phase_increment = 2.0f * PI * current_frequency / (float)sample_rate;
 
     rng_state = (uint32_t)time(NULL);
 
@@ -220,15 +261,23 @@ void signal_init(int sr, int ch, SDL_AudioDeviceID d) {
     // pink_b4 = pink_b5 = pink_b6 = 0.0f;
 }
 
-static float generate_wave_sample(float phase) {
+static float generate_wave_sample(float phase, float phase_increment) {
     switch (waveform) {
-        case NONE:          return 0.0f;
-        case WAVE_SINE:     return sinf(phase);
-        case WAVE_SQUARE:   return (sinf(phase) >= 0.0f) ? 1.0f : -1.0f;
-        case WAVE_SAW:      return 2.0f * (phase / (2.0f * PI)) - 1.0f;
+        case NONE:      return 0.0f;
+        case WAVE_SINE: return sinf(phase * TWO_PI);
+        case WAVE_SQUARE: {
+            float sq = (phase < 0.5f) ? 1.0f : -1.0f;
+            sq += polyblep(phase, phase_increment);
+            sq -= polyblep(fmodf(phase + 0.5f, 1.0f), phase_increment);
+            return sq;
+        }
+        case WAVE_SAW:
+            return (2.0f * phase - 1.0f) - polyblep(phase, phase_increment);
         case WAVE_TRIANGLE: {
-            float normalized = phase / (2.0f * PI);
-            return 2.0f * fabsf(2.0f * normalized - 1.0f) - 1.0f;
+            float tri = 1.0f - 4.0f * fabsf(phase - 0.5f);
+            tri += 4.0f * phase_increment * polyblamp(phase, phase_increment);
+            tri -= 4.0f * phase_increment * polyblamp(fmodf(phase + 0.5f, 1.0f), phase_increment);
+            return tri;
         }
         //hate having to clamp these, but there's not much of a better option I can find
         case WHITE_NOISE: {
@@ -250,7 +299,6 @@ float signal_next_sample(void) {
         if (freq_steps_remaining == 0) {
             current_frequency = target_frequency;
         }
-        phase_increment = 2.0f * PI * current_frequency / (float)sample_rate;
     }
 
     if (amp_steps_remaining > 0) {
@@ -268,12 +316,12 @@ float signal_next_sample(void) {
         }
     }
 
-    phase += phase_increment;
-    if (phase >= 2.0f * PI) {
-        phase -= 2.0f * PI;
-    }
+    float phase = (float)get_phase();
+    float phase_increment = current_frequency / (float)sample_rate;
+    sample_counter++;
 
-    float sample = generate_wave_sample(phase) * current_amplitude;
+    float sample = generate_wave_sample(phase, phase_increment) * current_amplitude;
+
     if (fabsf(sample) < 1e-20f) sample = 0.0f;
 
     return sample;
