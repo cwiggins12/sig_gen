@@ -19,6 +19,7 @@ else()
         src/renderer.c
         src/signal.c
         src/font_embedded.c
+        src/fir_coeffs.c
     )
 endif()
 

@@ -1,25 +1,11 @@
 #include "signal.h"
+#include "fir_coeffs.h"
 #include <time.h>
 #include <math.h>
-#include <stdio.h>
 
 #define TWO_PI 6.28318530717958647692
 #define RAMP_TIME_S 0.01f
 #define OVERSAMPLE_FACTOR 4
-
-// Anti-aliasing filter cutoff.
-// At 4x oversampling the internal sample rate is 192kHz, Nyquist is 96kHz.
-// A cutoff of 20kHz gives ~76kHz of rolloff room.
-#define ANTIALIASING_CUTOFF_HZ 20000.0f
-
-// 8th order Butterworth Q values for the four pole pairs.
-// These give a maximally flat passband with no resonance peak.
-// At the internal rate the high-Q stages no longer cause instability
-// since the cutoff is far from Nyquist.
-#define BUTTERWORTH_Q1 0.5098f
-#define BUTTERWORTH_Q2 0.6013f
-#define BUTTERWORTH_Q3 0.8999f
-#define BUTTERWORTH_Q4 1.4142f
 
 static int output_sample_rate   = 48000;
 static int internal_sample_rate = 48000 * OVERSAMPLE_FACTOR;
@@ -39,9 +25,9 @@ static WaveType waveform = WAVE_SINE;
 static int waveform_pending = 0;
 static WaveType next_waveform = NONE;
 
-// Counter-based phase: phase is computed as (sample_counter * current_frequency / internal_sample_rate).
-// phase_offset is used to ensure phase continuity when frequency changes mid-stream.
-// Both operate at the internal (oversampled) rate.
+//counter-based phase: phase is computed as (sample_counter * current_frequency / internal_sample_rate).
+//phase_offset is used to ensure phase continuity when frequency changes mid-stream.
+//both operate at the internal (oversampled) rate.
 static uint64_t sample_counter = 0;
 static double phase_offset = 0.0;
 
@@ -55,63 +41,24 @@ static float pink_b4 = 0.0f;
 static float pink_b5 = 0.0f;
 static float pink_b6 = 0.0f;
 
-// Biquad lowpass filter.
-// Four stages cascaded for an 8th order Butterworth response (-48dB/octave).
-// At 4x oversampling with a 20kHz cutoff against a 96kHz Nyquist, the high-Q
-// stages are well-behaved — the instability seen at output rate (where the
-// cutoff was 88% of Nyquist) does not occur here where it is only 21%.
-typedef struct {
-    float b0, b1, b2;
-    float a1, a2;
-    float x1, x2;
-    float y1, y2;
-} Biquad;
+//circular buffer for FIR filter delay line.
+static float fir_buf[FIR_TAPS];
+static int   fir_buf_pos = 0;
 
-static Biquad aa_filter_1;
-static Biquad aa_filter_2;
-static Biquad aa_filter_3;
-static Biquad aa_filter_4;
-
-static void biquad_lowpass_init(Biquad *f, float cutoff_hz, float sr, float q) {
-    float w0     = (float)(TWO_PI * cutoff_hz / sr);
-    float cos_w0 = cosf(w0);
-    float sin_w0 = sinf(w0);
-    float alpha  = sin_w0 / (2.0f * q);
-
-    float b0 =  (1.0f - cos_w0) / 2.0f;
-    float b1 =   1.0f - cos_w0;
-    float b2 =  (1.0f - cos_w0) / 2.0f;
-    float a0 =   1.0f + alpha;
-    float a1 =  -2.0f * cos_w0;
-    float a2 =   1.0f - alpha;
-
-    f->b0 = b0 / a0;
-    f->b1 = b1 / a0;
-    f->b2 = b2 / a0;
-    f->a1 = a1 / a0;
-    f->a2 = a2 / a0;
-    f->x1 = f->x2 = 0.0f;
-    f->y1 = f->y2 = 0.0f;
-}
-
-static float biquad_process(Biquad *f, float x) {
-    float y = f->b0 * x + f->b1 * f->x1 + f->b2 * f->x2
-                        - f->a1 * f->y1 - f->a2 * f->y2;
-    f->x2 = f->x1;
-    f->x1 = x;
-    f->y2 = f->y1;
-    f->y1 = y;
-    return y;
+static float fir_process(float x) {
+    fir_buf[fir_buf_pos] = x;
+    float acc = 0.0f;
+    int pos = fir_buf_pos;
+    for (int i = 0; i < FIR_TAPS; i++) {
+        acc += fir_coeffs[i] * fir_buf[pos];
+        if (--pos < 0) pos = FIR_TAPS - 1;
+    }
+    if (++fir_buf_pos >= FIR_TAPS) fir_buf_pos = 0;
+    return acc;
 }
 
 static const char *waveform_names[] = {
-    "NONE",
-    "SINE",
-    "SQUARE",
-    "SAW",
-    "TRIANGLE",
-    "WHITE NOISE",
-    "PINK NOISE"
+    "NONE", "SINE", "SQUARE", "SAW", "TRIANGLE", "WHITE NOISE", "PINK NOISE"
 };
 
 static uint32_t rng_state = 0x12345678;
@@ -132,25 +79,16 @@ static float rand_uniform() {
 static float rand_gaussian(float stddev) {
     static int has_spare = 0;
     static float spare;
-
-    if (has_spare) {
-        has_spare = 0;
-        return spare * stddev;
-    }
-
+    if (has_spare) { has_spare = 0; return spare * stddev; }
     float u, v, s;
-
     do {
         u = rand_uniform() * 2.0f - 1.0f;
         v = rand_uniform() * 2.0f - 1.0f;
         s = u * u + v * v;
     } while (s >= 1.0f || s == 0.0f);
-
     s = sqrtf(-2.0f * logf(s) / s);
-
     spare = v * s;
     has_spare = 1;
-
     return stddev * (u * s);
 }
 
@@ -162,21 +100,16 @@ static float generate_pink() {
     pink_b3 = 0.86650f * pink_b3 + white * 0.3104856f;
     pink_b4 = 0.55000f * pink_b4 + white * 0.5329522f;
     pink_b5 = -0.7616f * pink_b5 - white * 0.0168980f;
-
     float pink = pink_b0 + pink_b1 + pink_b2 +
                  pink_b3 + pink_b4 + pink_b5 +
                  pink_b6 + white * 0.5362f;
-
     pink_b6 = white * 0.115926f;
-
     //scalar found through testing to roughly cover some of the rms difference without hitting the clamp too hard
     //the commented out test can give a better scalar to better match the rms of the other signals if wanted
     return pink * 0.325f;
 }
 
-// Corrects a unit-step discontinuity (used for saw and square).
-// phase is the current normalized phase [0, 1).
-// phase_increment is the per-sample phase step at the internal rate.
+//corrects a unit-step discontinuity (used for saw and square)
 static float polyblep(float phase, float phase_increment) {
     if (phase < phase_increment) {
         float t = phase / phase_increment;
@@ -188,8 +121,7 @@ static float polyblep(float phase, float phase_increment) {
     return 0.0f;
 }
 
-// Corrects a slope discontinuity (used for triangle).
-// Smooths the points where the derivative instantaneously reverses.
+//corrects a slope discontinuity (used for triangle)
 static float polyblamp(float phase, float phase_increment) {
     if (phase < phase_increment) {
         float t = phase / phase_increment - 1.0f;
@@ -201,8 +133,7 @@ static float polyblamp(float phase, float phase_increment) {
     return 0.0f;
 }
 
-// Returns the current phase in [0, 1) without accumulation error.
-// Computed against the internal (oversampled) rate.
+//returns the current phase in [0, 1) without accumulation error
 static double get_phase() {
     double phase = phase_offset + (double)current_frequency * (double)sample_counter / (double)internal_sample_rate;
     phase -= floor(phase);
@@ -215,8 +146,6 @@ static void start_freq_ramp(float from, float to) {
         freq_steps_remaining = 0;
         return;
     }
-    // Capture current phase before changing frequency so get_phase() stays continuous.
-    // Steps are counted at the internal rate so the ramp duration matches RAMP_TIME_S.
     double current_phase = get_phase();
     freq_steps_remaining = (int)(RAMP_TIME_S * internal_sample_rate);
     freq_ratio = powf(to / from, 1.0f / (float)freq_steps_remaining);
@@ -230,7 +159,6 @@ static void start_amp_ramp(float from, float to) {
         amp_steps_remaining = 0;
         return;
     }
-    // Steps are counted at the internal rate so the ramp duration matches RAMP_TIME_S.
     amp_steps_remaining = (int)(RAMP_TIME_S * internal_sample_rate);
     amp_increment = (to - from) / (float)amp_steps_remaining;
 }
@@ -258,27 +186,14 @@ void signal_set_waveform(WaveType type) {
     start_amp_ramp(current_amplitude, 0.0f);
 }
 
-float signal_get_frequency() {
-    return target_frequency;
-}
-
-float signal_get_amplitude() {
-    return target_amplitude;
-}
+float signal_get_frequency()          { return target_frequency; }
+float signal_get_amplitude()          { return target_amplitude; }
+int   signal_get_channels()           { return channels; }
+SDL_AudioDeviceID signal_get_device() { return device; }
 
 const char* signal_get_waveform() {
-    if (waveform < 0 || waveform > 6) {
-        return "UNKNOWN";
-    }
+    if (waveform < 0 || waveform > 6) return "UNKNOWN";
     return waveform_names[waveform];
-}
-
-int signal_get_channels() {
-    return channels;
-}
-
-SDL_AudioDeviceID signal_get_device() {
-    return device;
 }
 
 void signal_init(int sr, int ch, SDL_AudioDeviceID d) {
@@ -305,17 +220,8 @@ void signal_init(int sr, int ch, SDL_AudioDeviceID d) {
     pink_b0 = pink_b1 = pink_b2 = pink_b3 =
     pink_b4 = pink_b5 = pink_b6 = 0.0f;
 
-    // Filter initialised at the internal sample rate.
-    // At 4x oversampling the transition band is ~76kHz wide.
-    // The high-Q stage (1.4142) is stable here because the cutoff
-    // is only 21% of the internal Nyquist rather than 88% at output rate.
-    biquad_lowpass_init(&aa_filter_1, ANTIALIASING_CUTOFF_HZ, (float)internal_sample_rate, BUTTERWORTH_Q1);
-    biquad_lowpass_init(&aa_filter_2, ANTIALIASING_CUTOFF_HZ, (float)internal_sample_rate, BUTTERWORTH_Q2);
-    biquad_lowpass_init(&aa_filter_3, ANTIALIASING_CUTOFF_HZ, (float)internal_sample_rate, BUTTERWORTH_Q3);
-    biquad_lowpass_init(&aa_filter_4, ANTIALIASING_CUTOFF_HZ, (float)internal_sample_rate, BUTTERWORTH_Q4);
-
-    printf("output_sample_rate: %d  internal_sample_rate: %d\n",
-        output_sample_rate, internal_sample_rate);
+    for (int i = 0; i < FIR_TAPS; i++) fir_buf[i] = 0.0f;
+    fir_buf_pos = 0;
 
     // // Noise RMS measurement
     // FILE *rms_log = fopen("rms.txt", "w");
@@ -371,14 +277,12 @@ static float generate_wave_sample(float phase, float phase_increment) {
     }
 }
 
-// Generates one internal-rate sample, advancing all internal state.
+//generates one internal-rate sample and runs it through the FIR delay line.
 static float next_internal_sample(void) {
     if (freq_steps_remaining > 0) {
         current_frequency *= freq_ratio;
         freq_steps_remaining--;
-        if (freq_steps_remaining == 0) {
-            current_frequency = target_frequency;
-        }
+        if (freq_steps_remaining == 0) current_frequency = target_frequency;
     }
 
     if (amp_steps_remaining > 0) {
@@ -402,34 +306,29 @@ static float next_internal_sample(void) {
 
     float sample = generate_wave_sample(phase, phase_increment) * current_amplitude;
 
-    // Apply anti-aliasing filter to all waveforms except noise.
-    // Noise is broadband by nature and does not alias in the same way.
+    //FIR filter applied to all waveforms except noise
     switch (waveform) {
         case WHITE_NOISE:
         case PINK_NOISE:
             break;
         default:
-            sample = biquad_process(&aa_filter_1, sample);
-            sample = biquad_process(&aa_filter_2, sample);
-            sample = biquad_process(&aa_filter_3, sample);
-            sample = biquad_process(&aa_filter_4, sample);
+            sample = fir_process(sample);
             break;
     }
 
     if (fabsf(sample) < 1e-20f) sample = 0.0f;
-
     return sample;
 }
 
-// Public entry point called by the SDL audio callback.
-// Generates OVERSAMPLE_FACTOR internal samples per output sample and
-// returns their average. The biquad filter removes everything above
-// output Nyquist before decimation, and the boxcar average provides
-// an additional lowpass on the decimated output.
+//entry point called by the SDL audio callback.
+//generates OVERSAMPLE_FACTOR internal samples per output sample,
+//running each through the FIR filter, then returns the last one.
+//point decimation is valid because the FIR has already removed
+//everything above output Nyquist to >83dB below signal level.
 float signal_next_sample(void) {
-    float sum = 0.0f;
+    float sample = 0.0f;
     for (int i = 0; i < OVERSAMPLE_FACTOR; i++) {
-        sum += next_internal_sample();
+        sample = next_internal_sample();
     }
-    return sum / (float)OVERSAMPLE_FACTOR;
+    return sample;
 }
